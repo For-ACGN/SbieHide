@@ -11,7 +11,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 	case DLL_PROCESS_ATTACH:
         InitMemoryImageHideInformation();
 
-		EraseModuleNameFromPeb();
+		// EraseModuleNameFromPeb();
 
 		EnableApiHook();
 		break;

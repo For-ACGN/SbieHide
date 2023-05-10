@@ -24,6 +24,24 @@ NtQueryInformationFileType NtQueryInformationFileSaved = nullptr;
 typedef NTSTATUS(NTAPI *NtQuerySectionType)(_In_ HANDLE SectionHandle, _In_ SECTION_INFORMATION_CLASS SectionInformationClass, _Out_writes_bytes_(SectionInformationLength) PVOID SectionInformation, _In_ SIZE_T SectionInformationLength, _Out_opt_ PSIZE_T ReturnLength);
 NtQuerySectionType NtQuerySectionSaved = nullptr;
 
+typedef NTSTATUS(NTAPI *LdrGetDllHandleType)(
+    IN PWORD pwPath    OPTIONAL,
+    IN PVOID Unused    OPTIONAL,
+    IN PUNICODE_STRING ModuleFileName,
+    OUT PHANDLE        pHModule
+   );
+LdrGetDllHandleType LdrGetDllHandleSaved = nullptr;
+
+
+typedef NTSTATUS(NTAPI *LdrLoadDllType) (
+    IN PWCHAR PathToFile OPTIONAL,
+    IN ULONG *Flags      OPTIONAL,
+    IN PUNICODE_STRING   ModuleFileName,
+    OUT PHANDLE          ModuleHandle);
+
+LdrLoadDllType LdrLoadDllSaved = nullptr;
+
+
 NTSTATUS NTAPI NtQueryVirtualMemoryProxy(_In_ HANDLE ProcessHandle, _In_opt_ PVOID BaseAddress, _In_ MEMORY_INFORMATION_CLASS MemoryInformationClass, _Out_writes_bytes_(MemoryInformationLength) PVOID MemoryInformation, _In_ SIZE_T MemoryInformationLength, _Out_opt_ PSIZE_T ReturnLength) {
     if (IsAddressShouldHide(BaseAddress)) {
         switch (MemoryInformationClass) {
@@ -175,6 +193,57 @@ NTSTATUS NTAPI NtQuerySectionProxy(_In_ HANDLE SectionHandle, _In_ SECTION_INFOR
     return Status;
 }
 
+
+NTSTATUS NTAPI LdrGetDllHandleProxy(
+    IN PWORD pwPath    OPTIONAL,
+    IN PVOID Unused    OPTIONAL,
+    IN PUNICODE_STRING ModuleFileName,
+    OUT PHANDLE        pHModule) {
+    NTSTATUS Status         = STATUS_SUCCESS;
+    WCHAR    Name[MAX_PATH] = { 0 };
+
+    if (ModuleFileName && ModuleFileName->Buffer) {
+        wcsncpy_s(
+            Name,
+            MAX_PATH - 1,
+            ModuleFileName->Buffer,
+            ModuleFileName->Length / sizeof(WCHAR));
+
+        if (_wcsicmp(Name, L"sbiedll.dll") == 0 || _wcsicmp(Name, L"sbiehide.dll") == 0) {
+            return STATUS_UNSUCCESSFUL;
+        }
+    }
+
+    Status = LdrGetDllHandleSaved(pwPath, Unused, ModuleFileName, pHModule);
+
+    return Status;
+}
+
+NTSTATUS NTAPI LdrLoadDllProxy(
+    IN PWCHAR PathToFile OPTIONAL,
+    IN ULONG *Flags      OPTIONAL,
+    IN PUNICODE_STRING   ModuleFileName,
+    OUT PHANDLE          ModuleHandle) {
+    NTSTATUS Status         = STATUS_SUCCESS;
+    WCHAR    Name[MAX_PATH] = { 0 };
+
+    if (ModuleFileName && ModuleFileName->Buffer) {
+        wcsncpy_s(
+            Name,
+            MAX_PATH - 1,
+            ModuleFileName->Buffer,
+            ModuleFileName->Length / sizeof(WCHAR));
+
+        if (_wcsicmp(Name, L"sbiedll.dll") == 0 || _wcsicmp(Name, L"sbiehide.dll") == 0) {
+            return STATUS_UNSUCCESSFUL;
+        }
+    }
+
+    Status = LdrLoadDllSaved(PathToFile, Flags, ModuleFileName, ModuleHandle);
+
+    return Status;
+}
+
 BOOLEAN EnableApiHook() {
     if (MH_Initialize() != MH_OK) {
         return FALSE;
@@ -212,5 +281,20 @@ BOOLEAN EnableApiHook() {
         return FALSE;
     }
 
+    if (MH_CreateHook(LdrGetDllHandle, LdrGetDllHandleProxy, reinterpret_cast<PVOID *>(&LdrGetDllHandleSaved)) != MH_OK) {
+        return FALSE;
+    }
+
+    if (MH_EnableHook(LdrGetDllHandle) != MH_OK) {
+        return FALSE;
+    }
+
+    if (MH_CreateHook(LdrLoadDll, LdrLoadDllProxy, reinterpret_cast<PVOID *>(&LdrLoadDllSaved)) != MH_OK) {
+        return FALSE;
+    }
+
+    if (MH_EnableHook(LdrLoadDll) != MH_OK) {
+        return FALSE;
+    }
     return TRUE;
 }
