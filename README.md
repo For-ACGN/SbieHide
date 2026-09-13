@@ -1,4 +1,6 @@
-A plugin written for [sandboxie-plus](https://github.com/sandboxie-plus/Sandboxie), which is used to fight the detection of SbieDll.dll
+
+
+A plugin written for [sandboxie-plus](https://github.com/sandboxie-plus/Sandboxie-Plus), which is used to fight the detection of SbieDll.dll
 
 ## How to use?
 
